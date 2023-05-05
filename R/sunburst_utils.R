@@ -16,16 +16,23 @@
 #  Summarize counts at each stage/state combo w.
 #  Plot sunburts
 
-make_sequence <- function(df,patid, state, stage){
+library(dplyr)
+library(ggplot2)
+
+make_sequence <- function(df, patid=patid, state=state, stage=stage){
+  patid <- enquo(patid)
+  state <- enquo(state)
+  stg <- enquo(stage)
+  
   df %>%
-    arrange(patid, stage, state) %>%
-    ## Collapse multiple states within a single stage
-    group_by(patid, stage) %>%
-    arrange(patid, stage, state) %>%
-    summarize(state = paste(unique(state), collapse = "/")) %>%
+    arrange(!!patid, !!stg, !!state) %>%
+    ## Collapse multiple !!states within a single !!stage
+    group_by(!!patid, !!stg) %>%
+    arrange(!!patid, !!stg, !!state) %>%
+    summarize(state = paste(unique(!!state), collapse = "/")) %>%
     ungroup %>%
-    group_by(patid) %>%
-    mutate(
+    group_by(!!patid) %>%
+    mutate(stage = !!stg,
       stage_seq = purrr::accumulate(.x=state, 
                                     paste,sep = '->'),
       prv_seq = lag(stage_seq,default = 'Initial' )) %>% 
@@ -59,77 +66,78 @@ make_sequence <- function(df,patid, state, stage){
     ungroup
   
 }
-
-nPats <- 101L
-mult1 <- 0.9
-mult2 <- 0.8
-set.seed(1)
-set.seed(12345)
-ring1 <- data.frame(
-  patientID = 1:nPats,
-  state = sample(letters[1:3],nPats, replace = T),
-  stage = 1
-)
-n2 <- floor(nPats*mult1)
-ring2 <- data.frame(
-  patientID = sample(ring1$patientID, n2),
-  state = sample(letters[1:4],n2, replace = T),
-  stage = 2
-)
-n3 <- n2*mult2
-ring3 <- data.frame(
-  patientID = sample(ring2$patientID,n3),
-  state = sample(letters[1:4],n3, replace = T),
-  stage = 3
-)
+# 
+# nPats <- 101L
+# mult1 <- 0.9
+# mult2 <- 0.8
+# set.seed(1)
+# set.seed(12345)
+# ring1 <- data.frame(
+#   patientID = 1:nPats,
+#   state = sample(letters[1:3],nPats, replace = T),
+#   stage = 1
+# )
+# n2 <- floor(nPats*mult1)
+# ring2 <- data.frame(
+#   patientID = sample(ring1$patientID, n2),
+#   state = sample(letters[1:4],n2, replace = T),
+#   stage = 2
+# )
+# n3 <- n2*mult2
+# ring3 <- data.frame(
+#   patientID = sample(ring2$patientID,n3),
+#   state = sample(letters[1:4],n3, replace = T),
+#   stage = 3
+# )
 substrRight <- function(x){
   sapply(x, function(xx)
     substr(xx, (nchar(xx)), nchar(xx))
   )
 }
-
-df <- bind_rows(ring1, ring2, ring3)
-
-paste2 <- function(x, y, sep = ".") paste(x, y, sep = '+')
-max_stg <- max(df$stage)
-
-
-df_sun1 <- df %>%
-  arrange(patientID, stage, state) %>%
-  group_by(patientID) %>%
-  mutate(
-    stage_seq = purrr::accumulate(.x=state, 
-                                  paste,sep = '->'),
-    prv_seq = lag(stage_seq,default = 'Initial' )) %>% 
-  group_by(stage, stage_seq, prv_seq) %>%
-  summarize(ct = n()) %>%
-  group_by(prv_seq) %>%
-  mutate(mult1 = sum(ct)) %>%
-  ungroup %>%
-  {
-    ringNs <- group_by(.,stage) %>% 
-      summarize(ringN = sum(ct))
-    left_join(.,ringNs)
-  } %>%
-  {
-    df1 <- filter(., prv_seq == 'Initial') %>% 
-      mutate(ct_prv = sum(ct))
-    df2 <- group_by(., stage, prv_seq) %>%
-      mutate(ct_prv = ct,
-             stage = stage + 1,
-             prv_seq = stage_seq) %>%
-      select(prv_seq,  stage, ct_prv) 
-    df2 <- filter(., prv_seq != 'Initial') %>% left_join(df2)
-    bind_rows(df1,df2)
-  } %>%
-  group_by(stage, prv_seq) %>%
-  mutate(pct = ct/ct_prv,
-         pct_cum = cumsum(pct),
-         pct_cum_min = lag(pct_cum, default = 0),
-         pct_cum_med = (pct_cum_min + pct_cum) /2
-  ) %>%
-  ungroup
-
+# 
+# df <- bind_rows(ring1, ring2, ring3)
+# 
+# paste2 <- function(x, y, sep = ".") paste(x, y, sep = '+')
+# max_stg <- max(df$stage)
+# 
+# df_sun1 <- df %>% make_sequence()
+# 
+# df_sun1 <- df %>%
+#   arrange(patientID, stage, state) %>%
+#   group_by(patientID) %>%
+#   mutate(
+#     stage_seq = purrr::accumulate(.x=state, 
+#                                   paste,sep = '->'),
+#     prv_seq = lag(stage_seq,default = 'Initial' )) %>% 
+#   group_by(stage, stage_seq, prv_seq) %>%
+#   summarize(ct = n()) %>%
+#   group_by(prv_seq) %>%
+#   mutate(mult1 = sum(ct)) %>%
+#   ungroup %>%
+#   {
+#     ringNs <- group_by(.,stage) %>% 
+#       summarize(ringN = sum(ct))
+#     left_join(.,ringNs)
+#   } %>%
+#   {
+#     df1 <- filter(., prv_seq == 'Initial') %>% 
+#       mutate(ct_prv = sum(ct))
+#     df2 <- group_by(., stage, prv_seq) %>%
+#       mutate(ct_prv = ct,
+#              stage = stage + 1,
+#              prv_seq = stage_seq) %>%
+#       select(prv_seq,  stage, ct_prv) 
+#     df2 <- filter(., prv_seq != 'Initial') %>% left_join(df2)
+#     bind_rows(df1,df2)
+#   } %>%
+#   group_by(stage, prv_seq) %>%
+#   mutate(pct = ct/ct_prv,
+#          pct_cum = cumsum(pct),
+#          pct_cum_min = lag(pct_cum, default = 0),
+#          pct_cum_med = (pct_cum_min + pct_cum) /2
+#   ) %>%
+#   ungroup
+# 
 
 
 ## Case 1 Overlap States ##
@@ -183,4 +191,4 @@ window_to_stage <- function(df, gap=NA,gap_val = 'None'){
            } %>%
     select(patid, state, stage)
 }
-window_to_stage(df_window)
+# window_to_stage(df_window)

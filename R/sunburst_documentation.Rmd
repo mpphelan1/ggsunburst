@@ -1,0 +1,49 @@
+---
+title: "sunburst_motivation"
+output: html_document
+date: "2023-05-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source('sunburst_utils.R')
+source('sunburst_plot.R')
+```
+
+## Sunburst Motivation
+
+Visualizing patterns in how people move across *states* can be a useful way to understand trends over time. In health sciences a researcher may be interested in how a patient with a disease gets treated for that disease, for example they may start on a treatment and transition to a different treatment if the initial treatment is not effective. Seeing these treatment patterns in aggregate can be a useful tool. 
+
+To visualize this sort of information a starting point for what is needed of the data is a *subject*, a *state* (here, the treatment), and a *stage* (here the **time** component).
+```{r echo=F}
+df_long = data.frame(SUBJECT_ID = c(1,1,2,2,3,3,4,4,5,5),
+                     TIME   = rep(1:2,5),
+                     TREATMENT =  paste0('Drug ',c('A','B','B','A','A','A','A','A','B','C')))
+df_long
+```
+
+Data of this form can the be aggregated at each stage. So in the above example 3 out of 5 people are on Drug A at Time 1. Of those 3 people, 1  transitions to Drug B at Time 2, while the other 2 does not transition to a different drug. 
+
+```{r echo=F, message = F}
+library(gt)
+df_long %>%
+  make_sequence(SUBJECT_ID,TREATMENT,TIME) %>%
+  arrange(stage, stage_seq)  %>%
+  select(Stage = stage, Sequence = stage_seq, Count = ct) %>%
+  gt
+```
+
+A sunburst plot can allow you to see these pathways.
+
+```{r echo=F, message = F}
+plt <- df_long %>%
+  make_sequence(SUBJECT_ID,TREATMENT,TIME) %>%
+  prep_for_plot %>%
+  ggsunburst_dynamic
+girafe(ggobj = plt)
+
+```
+
+In this figure, the inner ring is 60% <span style="color: #F8766D;">coral</span> and 40% <span style="color: green;">green</span> to correspond with the proportions of subjects on those drugs during TIME = 1. Similarly each partition in the outer ring is either 20% or 40% to correspond to the percentage of patients that followed a given pathway.
+
+
